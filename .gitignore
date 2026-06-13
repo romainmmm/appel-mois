@@ -7,3 +7,5 @@ apercu_*.pdf
 staff_config.json
 notes.json
 timesheet.json
+extra_employees.json
+app_config.json

@@ -49,6 +49,14 @@ class TestManualCleaningTasks:
         notes = [ManualTask("2026-07-15", "Autre", None, "note libre")]
         assert manual_cleaning_tasks(notes) == {}
 
+    def test_chien_appears_on_sheet(self):
+        notes = [ManualTask("2026-07-15", "Chien", 210, "petit chien")]
+        tasks = manual_cleaning_tasks(notes)
+        d = date(2026, 7, 15)
+        assert d in tasks
+        assert tasks[d][0].room == 210
+        assert "Chien" in tasks[d][0].night_label
+
     def test_menage_without_room_excluded(self):
         notes = [ManualTask("2026-07-15", "Ménage", None, "oops")]
         assert manual_cleaning_tasks(notes) == {}

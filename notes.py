@@ -14,8 +14,8 @@ from datetime import date
 
 from cleaning_schedule import CleaningTask
 
-TYPES = ["Ménage", "Serviette", "Autre"]
-_SHEET_TYPES = {"Ménage", "Serviette"}   # types that appear on the day sheet
+TYPES = ["Ménage", "Serviette", "Chien", "Autre"]
+_SHEET_TYPES = {"Ménage", "Serviette", "Chien"}   # types that appear on the day sheet
 
 
 @dataclass

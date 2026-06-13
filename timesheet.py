@@ -43,11 +43,14 @@ def set_entry(data: dict, employee: str, iso: str,
 
 
 def worked_hours(arrivee: str, depart: str, pause_min: int = 0) -> float:
-    """Hours worked = (depart - arrivee) - break. Returns 0 if incomplete."""
+    """Hours worked = (depart - arrivee) - break. Returns 0 if incomplete/invalid."""
     if not arrivee or not depart:
         return 0.0
-    a = datetime.strptime(arrivee, "%H:%M")
-    d = datetime.strptime(depart, "%H:%M")
+    try:
+        a = datetime.strptime(arrivee[:5], "%H:%M")
+        d = datetime.strptime(depart[:5], "%H:%M")
+    except (ValueError, TypeError):
+        return 0.0
     minutes = (d - a).total_seconds() / 60 - (pause_min or 0)
     if minutes <= 0:
         return 0.0

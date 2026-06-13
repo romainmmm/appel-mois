@@ -29,6 +29,7 @@ from timesheet import (
     load_timesheet, save_timesheet, get_entry, set_entry,
     worked_hours, period_total, fortnight, monday_of,
 )
+from extra_staff import ExtraEmployee, load_extra_staff, save_extra_staff
 from room_layout import ALL_ROOMS
 from excel_export import build_month_workbook, build_day_sheet
 from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
@@ -42,7 +43,10 @@ HERE = os.path.dirname(__file__)
 CONFIG_PATH = os.path.join(HERE, "staff_config.json")
 NOTES_PATH = os.path.join(HERE, "notes.json")
 TIMESHEET_PATH = os.path.join(HERE, "timesheet.json")
+EXTRA_PATH = os.path.join(HERE, "extra_employees.json")
+SETTINGS_PATH = os.path.join(HERE, "app_config.json")
 LOGO_PATH = os.path.join(HERE, "assets", "logo_motel.png")
+DEFAULT_SETTINGS = {"delete_password": "motel"}
 FLOOR_OPTIONS = {"Aucun (flexible)": None, "100": 100, "200": 200, "300": 300, "400": 400}
 FLOOR_LABELS = {v: k for k, v in FLOOR_OPTIONS.items()}
 
@@ -149,9 +153,74 @@ def _init_timesheet():
         st.session_state.timesheet = load_timesheet(TIMESHEET_PATH)
 
 
+def _init_extra():
+    if "extra" not in st.session_state:
+        st.session_state.extra = load_extra_staff(EXTRA_PATH)
+
+
+def _load_settings() -> dict:
+    import json
+    s = dict(DEFAULT_SETTINGS)
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+            s.update(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return s
+
+
+def _save_settings(s: dict) -> None:
+    import json
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(s, f, ensure_ascii=False, indent=2)
+
+
+def _init_settings():
+    if "settings" not in st.session_state:
+        st.session_state.settings = _load_settings()
+
+
+def request_delete(kind: str, ident: str, label: str) -> None:
+    """Flag an item for deletion; the confirmation box will ask for the password."""
+    st.session_state.pending_delete = {"kind": kind, "ident": ident, "label": label}
+
+
+def _perform_delete(pend: dict) -> None:
+    if pend["kind"] == "worker":
+        st.session_state.workers = [
+            w for w in st.session_state.workers if w.name != pend["ident"]]
+        save_workers(st.session_state.workers, CONFIG_PATH)
+    elif pend["kind"] == "extra":
+        st.session_state.extra = [
+            x for x in st.session_state.extra if x.name != pend["ident"]]
+        save_extra_staff(st.session_state.extra, EXTRA_PATH)
+
+
+def render_delete_confirm() -> None:
+    pend = st.session_state.get("pending_delete")
+    if not pend:
+        return
+    st.warning(f"⚠️ Supprimer **{pend['label']}** ? Cette action est définitive.")
+    c1, c2, c3 = st.columns([3, 1.2, 1])
+    pw = c1.text_input("Mot de passe pour confirmer", type="password", key="del_pw")
+    if c2.button("Confirmer la suppression"):
+        if pw == st.session_state.settings.get("delete_password", "motel"):
+            _perform_delete(pend)
+            st.session_state.pending_delete = None
+            st.session_state.pop("del_pw", None)
+            st.rerun()
+        else:
+            st.error("Mot de passe incorrect — suppression annulée.")
+    if c3.button("Annuler"):
+        st.session_state.pending_delete = None
+        st.rerun()
+
+
 _init_workers()
 _init_notes()
 _init_timesheet()
+_init_extra()
+_init_settings()
 
 _inject_style()
 _render_header()
@@ -162,6 +231,8 @@ st.text_input(
     key="dest_dir",
     help="Par défaut, votre dossier Téléchargements. Vous pouvez coller un autre chemin.",
 )
+
+render_delete_confirm()
 
 tab_mois, tab_jour, tab_notes, tab_perso = st.tabs([
     "📅 Feuille du mois (réservations)",
@@ -182,7 +253,6 @@ with tab_mois:
             "dans « Ajouter un congé ponctuel »."
         )
         workers = st.session_state.workers
-        to_delete = None
 
         for idx, w in enumerate(sorted(workers, key=lambda x: x.order)):
             with st.container(border=True):
@@ -219,11 +289,8 @@ with tab_mois:
                     if c1.button("Effacer les congés", key=f"clroff_{idx}"):
                         w.days_off = []
                 if c2.button("🗑 Supprimer", key=f"del_{idx}"):
-                    to_delete = w
-
-        if to_delete is not None:
-            st.session_state.workers.remove(to_delete)
-            st.rerun()
+                    request_delete("worker", w.name, f"la préposée « {w.name} »")
+                    st.rerun()
 
         b1, b2 = st.columns(2)
         if b1.button("➕ Ajouter une préposée"):
@@ -234,6 +301,22 @@ with tab_mois:
         if b2.button("💾 Enregistrer l'équipe"):
             save_workers(st.session_state.workers, CONFIG_PATH)
             st.success("Équipe enregistrée.")
+
+        st.markdown("---")
+        st.markdown("**🔒 Mot de passe de suppression** (par défaut : `motel`)")
+        pc = st.columns([2, 2, 1.4])
+        cur_pw = pc[0].text_input("Mot de passe actuel", type="password", key="pw_cur")
+        new_pw = pc[1].text_input("Nouveau mot de passe", type="password", key="pw_new")
+        if pc[2].button("Changer"):
+            if cur_pw == st.session_state.settings.get("delete_password", "motel"):
+                if new_pw:
+                    st.session_state.settings["delete_password"] = new_pw
+                    _save_settings(st.session_state.settings)
+                    st.success("Mot de passe modifié.")
+                else:
+                    st.warning("Le nouveau mot de passe ne peut pas être vide.")
+            else:
+                st.error("Mot de passe actuel incorrect.")
 
     st.divider()
     col_a, col_b = st.columns([3, 1])
@@ -389,8 +472,8 @@ with tab_notes:
         n_comment = cols[3].text_input("Commentaire / note")
         if st.form_submit_button("➕ Ajouter"):
             room = int(n_room) if n_room != "—" else None
-            if n_type in ("Ménage", "Serviette") and not room:
-                st.warning("Choisissez un numéro de chambre pour une tâche Ménage/Serviette.")
+            if n_type in ("Ménage", "Serviette", "Chien") and not room:
+                st.warning("Choisissez un numéro de chambre pour une tâche Ménage / Serviette / Chien.")
             else:
                 st.session_state.notes.append(ManualTask(
                     date=n_date.isoformat(), type=n_type, room=room, comment=n_comment))
@@ -427,6 +510,10 @@ def _to_time(s):
 
 
 def _from_time(t):
+    # st.data_editor may return a str ("HH:MM[:SS]"), a datetime.time,
+    # a pandas Timestamp/NaT, or None — normalise all to "HH:MM".
+    if isinstance(t, str):
+        return t.strip()[:5]
     if t is None or pd.isna(t):
         return ""
     try:
@@ -442,9 +529,37 @@ with tab_perso:
         "travaillées sont calculées automatiquement. Tout est enregistré."
     )
 
-    names = [w.name for w in sorted(st.session_state.workers, key=lambda x: x.order)]
+    # Manage employees who are NOT in the cleaning team (reception, etc.)
+    with st.expander("👤 Employés hors équipe ménage (accueil, maintenance…)"):
+        st.caption("Ces employés comptent leurs heures ici mais n'apparaissent "
+                   "jamais dans la répartition des chambres.")
+        with st.form("add_extra", clear_on_submit=True):
+            ec = st.columns([3, 3, 1])
+            x_name = ec[0].text_input("Nom")
+            x_role = ec[1].text_input("Rôle (ex. Accueil)")
+            if ec[2].form_submit_button("➕") and x_name.strip():
+                st.session_state.extra.append(
+                    ExtraEmployee(name=x_name.strip(), role=x_role.strip()))
+                save_extra_staff(st.session_state.extra, EXTRA_PATH)
+                st.rerun()
+        for i, x in enumerate(st.session_state.extra):
+            rc = st.columns([3, 3, 1])
+            rc[0].write(x.name)
+            rc[1].write(x.role or "—")
+            if rc[2].button("🗑", key=f"delextra_{i}"):
+                request_delete("extra", x.name, f"l'employé « {x.name} »")
+                st.rerun()
+
+    cleaning_names = [w.name for w in sorted(st.session_state.workers, key=lambda x: x.order)]
+    extra_names = [x.name for x in st.session_state.extra]
+    role_of = {w.name: "Équipe ménage"
+               for w in st.session_state.workers}
+    role_of.update({x.name: (x.role or "Hors ménage") for x in st.session_state.extra})
+    names = cleaning_names + [n for n in extra_names if n not in cleaning_names]
+
     if not names:
-        st.info("Ajoutez d'abord des préposées dans l'onglet « Feuille du mois ».")
+        st.info("Ajoutez d'abord des préposées (onglet « Feuille du mois ») "
+                "ou un employé hors équipe ci-dessus.")
     else:
         c1, c2 = st.columns([2, 2])
         emp = c1.selectbox("Employé", names, key="ts_emp")
@@ -456,48 +571,64 @@ with tab_perso:
         st.write(
             f"Période : **{dates[0].strftime('%d/%m/%Y')} → {dates[-1].strftime('%d/%m/%Y')}**")
 
-        rows = []
-        for d in dates:
-            e = get_entry(ts, emp, d.isoformat())
-            rows.append({
-                "Jour": f"{WEEKDAYS_FR[d.weekday()][:3]} {d.strftime('%d/%m')}",
-                "Arrivée": _to_time(e["arrivee"]),
-                "Départ": _to_time(e["depart"]),
-                "Pause (min)": int(e.get("pause", 0)),
-                "Heures": worked_hours(e["arrivee"], e["depart"], e.get("pause", 0)),
-            })
-        df = pd.DataFrame(rows)
+        # Build the editor's base table ONCE per employee/period and keep it
+        # stable in session_state. Rebuilding it on every rerun conflicts with
+        # the editor's own edit-tracking and drops the first keystroke.
+        df_key = f"ts_df_{emp}_{start.isoformat()}"
+        if df_key not in st.session_state:
+            rows = []
+            for d in dates:
+                e = get_entry(ts, emp, d.isoformat())
+                rows.append({
+                    "Jour": f"{WEEKDAYS_FR[d.weekday()][:3]} {d.strftime('%d/%m')}",
+                    "Arrivée": _to_time(e["arrivee"]),
+                    "Départ": _to_time(e["depart"]),
+                    "Pause (min)": int(e.get("pause", 0)),
+                })
+            st.session_state[df_key] = pd.DataFrame(rows)
 
+        st.caption("Saisissez l'heure puis appuyez sur **Entrée** (ou cliquez ailleurs) pour valider.")
         edited = st.data_editor(
-            df, key=f"ts_editor_{emp}_{start.isoformat()}",
+            st.session_state[df_key],
+            key=f"ts_editor_{emp}_{start.isoformat()}",
             hide_index=True, use_container_width=True,
             column_config={
                 "Jour": st.column_config.TextColumn("Jour", disabled=True),
-                "Arrivée": st.column_config.TimeColumn("Arrivée", format="HH:mm"),
-                "Départ": st.column_config.TimeColumn("Départ", format="HH:mm"),
+                "Arrivée": st.column_config.TimeColumn("Arrivée", format="HH:mm", step=60),
+                "Départ": st.column_config.TimeColumn("Départ", format="HH:mm", step=60),
                 "Pause (min)": st.column_config.NumberColumn("Pause (min)", min_value=0, step=5),
-                "Heures": st.column_config.NumberColumn("Heures", disabled=True, format="%.2f"),
             },
         )
 
-        changed = False
+        # Compute hours directly from what was typed, persist, and total it.
+        total = 0.0
+        hours_per_day = []
         for i, d in enumerate(dates):
             arr = _from_time(edited.iloc[i]["Arrivée"])
             dep = _from_time(edited.iloc[i]["Départ"])
             pv = edited.iloc[i]["Pause (min)"]
             pause = int(pv) if pd.notna(pv) else 0
-            existing = get_entry(ts, emp, d.isoformat())
-            if (arr, dep, pause) != (existing["arrivee"], existing["depart"], int(existing.get("pause", 0))):
-                set_entry(ts, emp, d.isoformat(), arr, dep, pause)
-                changed = True
-        if changed:
-            save_timesheet(ts, TIMESHEET_PATH)
-            st.rerun()
+            set_entry(ts, emp, d.isoformat(), arr, dep, pause)
+            h = worked_hours(arr, dep, pause)
+            hours_per_day.append(h)
+            total += h
+        save_timesheet(ts, TIMESHEET_PATH)
 
-        st.metric(f"Total des heures — {emp}", f"{period_total(ts, emp, dates)} h")
+        # Per-day hours (read-only) next to the day labels
+        hours_df = pd.DataFrame({
+            "Jour": edited["Jour"],
+            "Heures travaillées": hours_per_day,
+        })
+        st.dataframe(
+            hours_df, hide_index=True, use_container_width=True,
+            column_config={"Heures travaillées": st.column_config.NumberColumn(format="%.2f h")},
+        )
+
+        st.metric(f"Total des heures — {emp}", f"{round(total, 2)} h")
 
         st.divider()
-        st.markdown("**Totaux de la quinzaine (toute l'équipe)**")
+        st.markdown("**Totaux de la quinzaine (tout le personnel)**")
         summary = pd.DataFrame(
-            [{"Employé": n, "Heures": period_total(ts, n, dates)} for n in names])
+            [{"Employé": n, "Rôle": role_of.get(n, ""),
+              "Heures": period_total(ts, n, dates)} for n in names])
         st.dataframe(summary, hide_index=True, use_container_width=True)
