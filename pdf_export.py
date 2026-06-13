@@ -8,7 +8,7 @@
 from datetime import date
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape, portrait
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -70,7 +70,8 @@ def _grid_pdf(title, room_cell_fn, legend_items, output_path):
                 row_cells.append("")
         data.append(row_cells)
 
-    page_w = A4[0] - 20 * mm
+    # Landscape so the three room columns fit comfortably on one page
+    page_w = A4[1] - 20 * mm  # landscape width
     num_w = 14 * mm
     info_w = (page_w - 3 * num_w) / 3
     table = Table(data, colWidths=[num_w, info_w, num_w, info_w, num_w, info_w])
@@ -89,7 +90,7 @@ def _grid_pdf(title, room_cell_fn, legend_items, output_path):
     legend.setStyle(TableStyle(leg_style))
 
     doc = SimpleDocTemplate(
-        output_path, pagesize=portrait(A4),
+        output_path, pagesize=landscape(A4),
         leftMargin=10 * mm, rightMargin=10 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
     doc.build([Paragraph(title, _TITLE), table, Spacer(1, 6 * mm), legend])
 
