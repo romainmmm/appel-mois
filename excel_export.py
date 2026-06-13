@@ -26,6 +26,7 @@ import palette
 # Fills (sober palette)
 _FILL_DEPART = PatternFill("solid", fgColor=palette.DEPART)
 _FILL_SERVICE = PatternFill("solid", fgColor=palette.SERVICE)
+_FILL_MANUAL = PatternFill("solid", fgColor=palette.MANUAL)
 _FILL_MANAGER = PatternFill("solid", fgColor=palette.MANAGER)
 _FILL_HEADER = PatternFill("solid", fgColor=palette.HEADER)
 _FILL_WEEKEND = PatternFill("solid", fgColor=palette.WEEKEND)
@@ -122,21 +123,33 @@ def build_day_sheet(day_assignment: DayAssignment, output_path: str) -> None:
 def _room_cell_text(tasks: list[CleaningTask], worker: str) -> tuple[str, PatternFill]:
     """Build the info-cell text + fill for a room given its task(s) and worker."""
     kinds = {t.kind for t in tasks}
-    # Determine label
+
+    # Manual-only task (Ménage/Serviette added by hand)
+    if kinds == {"manuel"}:
+        label = " ; ".join(t.night_label for t in tasks if t.night_label) or "Manuel"
+        fill = _FILL_MANUAL
+        text = f"{label} | {worker}"
+        if worker == MANAGER_LABEL:
+            fill = _FILL_MANAGER
+        return text, fill
+
+    # Automatic task(s), possibly combined with a manual one
     if "depart" in kinds and "service" in kinds:
-        label = "DÉP+SERV"
-        fill = _FILL_DEPART
+        label, fill = "DÉP+SERV", _FILL_DEPART
     elif "depart" in kinds:
-        label = "DÉPART"
-        fill = _FILL_DEPART
+        label, fill = "DÉPART", _FILL_DEPART
+    elif "service" in kinds:
+        label, fill = "SERVICE", _FILL_SERVICE
     else:
-        label = "SERVICE"
-        fill = _FILL_SERVICE
-    # Night info for service
-    night = next((t.night_label for t in tasks if t.night_label), "")
+        label, fill = "Manuel", _FILL_MANUAL
+    night = next((t.night_label for t in tasks if t.kind == "service" and t.night_label), "")
     text = f"{label} | {worker}"
     if night:
         text += f" ({night})"
+    if "manuel" in kinds:
+        extra = " ; ".join(t.night_label for t in tasks if t.kind == "manuel" and t.night_label)
+        if extra:
+            text += f" + {extra}"
     if worker == MANAGER_LABEL:
         fill = _FILL_MANAGER
     return text, fill
@@ -201,7 +214,8 @@ def _write_day_grid(ws, da: DayAssignment) -> None:
     for col, label, fill in [
         ("B", "DÉPART", _FILL_DEPART),
         ("C", "SERVICE", _FILL_SERVICE),
-        ("D", "Gérants", _FILL_MANAGER),
+        ("D", "Manuel", _FILL_MANUAL),
+        ("E", "Gérants", _FILL_MANAGER),
     ]:
         cell = ws[f"{col}{legend_row}"]
         cell.value = label

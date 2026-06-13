@@ -24,6 +24,7 @@ _C_DEPART = colors.HexColor(palette.hx(palette.DEPART))
 _C_SERVICE = colors.HexColor(palette.hx(palette.SERVICE))
 _C_ARRIVEE = colors.HexColor(palette.hx(palette.ARRIVEE))
 _C_TURNOVER = colors.HexColor(palette.hx(palette.TURNOVER))
+_C_MANUAL = colors.HexColor(palette.hx(palette.MANUAL))
 _C_MANAGER = colors.HexColor(palette.hx(palette.MANAGER))
 _C_HEADER = colors.HexColor(palette.hx(palette.HEADER))
 _C_WEEKEND = colors.HexColor(palette.hx(palette.WEEKEND))
@@ -157,20 +158,34 @@ def build_day_pdf(day_assignment: DayAssignment, output_path: str) -> None:
         tasks = room_tasks[room]
         worker = room_worker[room]
         kinds = {t.kind for t in tasks}
+
+        if kinds == {"manuel"}:
+            label = " ; ".join(t.night_label for t in tasks if t.night_label) or "Manuel"
+            color = _C_MANUAL
+            text = f"{label} | {worker}"
+            return (text, _C_MANAGER if worker == MANAGER_LABEL else color)
+
         if "depart" in kinds and "service" in kinds:
             label, color = "DÉP+SERV", _C_DEPART
         elif "depart" in kinds:
             label, color = "DÉPART", _C_DEPART
-        else:
+        elif "service" in kinds:
             label, color = "SERVICE", _C_SERVICE
-        night = next((t.night_label for t in tasks if t.night_label), "")
+        else:
+            label, color = "Manuel", _C_MANUAL
+        night = next((t.night_label for t in tasks if t.kind == "service" and t.night_label), "")
         text = f"{label} | {worker}" + (f" ({night})" if night else "")
+        if "manuel" in kinds:
+            extra = " ; ".join(t.night_label for t in tasks if t.kind == "manuel" and t.night_label)
+            if extra:
+                text += f" + {extra}"
         if worker == MANAGER_LABEL:
             color = _C_MANAGER
         return text, color
 
     title = f"Feuille du jour — {WEEKDAYS_FR[d.weekday()]} {d.strftime('%d/%m/%Y')}"
-    legend = [("DÉPART", _C_DEPART), ("SERVICE", _C_SERVICE), ("Gérants", _C_MANAGER)]
+    legend = [("DÉPART", _C_DEPART), ("SERVICE", _C_SERVICE),
+              ("Manuel", _C_MANUAL), ("Gérants", _C_MANAGER)]
     _grid_pdf(title, cell_fn, legend, output_path)
 
 

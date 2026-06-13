@@ -22,6 +22,8 @@ from reservation_parser import parse_reservations
 from cleaning_schedule import compute_cleanings
 from distribution import assign_day
 from staff import Worker, WEEKDAYS_FR, default_workers, load_workers, save_workers
+from notes import ManualTask, TYPES, load_notes, save_notes, merge_into_schedule
+from room_layout import ALL_ROOMS
 from excel_export import build_month_workbook, build_day_sheet
 from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
 # Feuille du jour (housekeeping, inchangé)
@@ -31,6 +33,7 @@ from excel_generator import generate_excel
 st.set_page_config(page_title="Ménages — Motel Panoramique", page_icon="🧹", layout="wide")
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "staff_config.json")
+NOTES_PATH = os.path.join(os.path.dirname(__file__), "notes.json")
 FLOOR_OPTIONS = {"Aucun (flexible)": None, "100": 100, "200": 200, "300": 300, "400": 400}
 FLOOR_LABELS = {v: k for k, v in FLOOR_OPTIONS.items()}
 
@@ -63,7 +66,13 @@ def _init_workers():
         )
 
 
+def _init_notes():
+    if "notes" not in st.session_state:
+        st.session_state.notes = load_notes(NOTES_PATH)
+
+
 _init_workers()
+_init_notes()
 
 st.title("🧹 Gestion des ménages — Motel Panoramique")
 
@@ -74,9 +83,10 @@ st.text_input(
     help="Par défaut, votre dossier Téléchargements. Vous pouvez coller un autre chemin.",
 )
 
-tab_mois, tab_jour = st.tabs([
+tab_mois, tab_jour, tab_notes = st.tabs([
     "📅 Feuille du mois (réservations)",
     "📋 Feuille du jour (PDF état des chambres)",
+    "📝 Notes / tâches manuelles",
 ])
 
 
@@ -158,6 +168,8 @@ with tab_mois:
         try:
             res = parse_reservations(tmp_path)
             sched = compute_cleanings(res, freq_days=int(freq))
+            # Merge manually-added cleaning tasks (Ménage/Serviette) from the Notes tab
+            sched = merge_into_schedule(sched, st.session_state.notes)
             workers = st.session_state.workers
 
             if not sched:
@@ -199,7 +211,7 @@ with tab_mois:
                     with cols[i]:
                         st.markdown(f"**{name}** ({len(tasks)})")
                         for t in sorted(tasks, key=lambda x: x.room):
-                            icon = "🔴" if t.kind == "depart" else "🔵"
+                            icon = {"depart": "🔴", "service": "🔵", "manuel": "🟩"}.get(t.kind, "⚪")
                             st.write(f"{icon} {t.room} · ét.{t.floor} {t.night_label}")
                     i += 1
                 if da.unassigned:
@@ -272,3 +284,52 @@ with tab_jour:
             st.error(f"Erreur lors du traitement : {e}")
         finally:
             os.unlink(pdf_path)
+
+
+# ════════════════════════════════════════════════════════════════════
+#  ONGLET 3 — NOTES / TÂCHES MANUELLES
+# ════════════════════════════════════════════════════════════════════
+with tab_notes:
+    st.caption(
+        "Ajoutez des tâches à la main. « Ménage » et « Serviette » apparaissent "
+        "sur la feuille du jour de la date choisie (onglet Feuille du mois). "
+        "« Autre » est une note libre, conservée mais non affichée sur la feuille. "
+        "Tout est enregistré automatiquement."
+    )
+
+    with st.form("add_note", clear_on_submit=True):
+        cols = st.columns([2, 2, 1.3, 3])
+        n_date = cols[0].date_input("Date")
+        n_type = cols[1].selectbox("Type", TYPES)
+        room_choices = ["—"] + [str(r) for r in ALL_ROOMS]
+        n_room = cols[2].selectbox(
+            "N° de chambre", room_choices,
+            help="Le numéro exact de la chambre (ex. 204). « — » = aucune, pour une note « Autre ».")
+        n_comment = cols[3].text_input("Commentaire / note")
+        if st.form_submit_button("➕ Ajouter"):
+            room = int(n_room) if n_room != "—" else None
+            if n_type in ("Ménage", "Serviette") and not room:
+                st.warning("Choisissez un numéro de chambre pour une tâche Ménage/Serviette.")
+            else:
+                st.session_state.notes.append(ManualTask(
+                    date=n_date.isoformat(), type=n_type, room=room, comment=n_comment))
+                save_notes(st.session_state.notes, NOTES_PATH)
+                st.rerun()
+
+    st.divider()
+    if not st.session_state.notes:
+        st.info("Aucune note pour le moment.")
+    else:
+        h = st.columns([2, 2, 1, 4, 1])
+        for col, lbl in zip(h, ["Date", "Type", "Chambre", "Commentaire", ""]):
+            col.markdown(f"**{lbl}**")
+        for i, n in enumerate(sorted(st.session_state.notes, key=lambda x: (x.date, x.type))):
+            c = st.columns([2, 2, 1, 4, 1])
+            c[0].write(n.date)
+            c[1].write(n.type)
+            c[2].write(str(n.room) if n.room else "—")
+            c[3].write(n.comment or "")
+            if c[4].button("🗑", key=f"delnote_{i}"):
+                st.session_state.notes.remove(n)
+                save_notes(st.session_state.notes, NOTES_PATH)
+                st.rerun()

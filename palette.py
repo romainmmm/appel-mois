@@ -10,6 +10,7 @@ SERVICE = "CBD5DC"    # soft blue-grey  (service cleaning)
 ARRIVEE = "D3DAC4"    # sage green      (arrival — housekeeping sheet)
 TURNOVER = "EAD9B0"   # warm sand       (departure + arrival same day)
 MANAGER = "D9CFC0"    # taupe           (unassigned -> managers)
+MANUAL = "C9DCD4"     # soft teal       (manually-added task)
 WEEKEND = "EEF0F2"    # very light grey (weekend rows)
 GRID = "C9CCD1"       # grid lines
 HEADER_TEXT = "FFFFFF"
