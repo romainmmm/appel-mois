@@ -31,7 +31,7 @@ from timesheet import (
 )
 from extra_staff import ExtraEmployee, load_extra_staff, save_extra_staff
 from room_layout import ALL_ROOMS
-from excel_export import build_month_workbook, build_day_sheet
+from excel_export import build_month_workbook, build_day_sheet, build_timesheet_workbook
 from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
 # Feuille du jour (housekeeping, inchangé)
 from pdf_parser import parse_pdf
@@ -632,3 +632,9 @@ with tab_perso:
             [{"Employé": n, "Rôle": role_of.get(n, ""),
               "Heures": period_total(ts, n, dates)} for n in names])
         st.dataframe(summary, hide_index=True, use_container_width=True)
+
+        if st.button("📥 Télécharger l'Excel de la quinzaine (pour les paies)"):
+            employees = [(n, role_of.get(n, "")) for n in names]
+            save_and_report(
+                lambda p: build_timesheet_workbook(dates, employees, ts, p),
+                f"Paie_{dates[0].strftime('%Y_%m_%d')}_au_{dates[-1].strftime('%Y_%m_%d')}.xlsx")

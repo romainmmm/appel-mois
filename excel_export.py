@@ -229,3 +229,95 @@ def _write_day_grid(ws, da: DayAssignment) -> None:
     if extras:
         ws[f"A{legend_row + 1}"] = "Chambres hors plan : " + ", ".join(str(r) for r in sorted(extras))
         ws[f"A{legend_row + 1}"].font = Font(italic=True, color="C00000")
+
+
+# ── Timesheet / payroll workbook ────────────────────────────────────
+def build_timesheet_workbook(dates, employees, timesheet_data, output_path):
+    """Payroll workbook for a pay period.
+
+    Args:
+        dates: list of date objects covering the period (e.g. 14 days).
+        employees: list of (name, role) tuples.
+        timesheet_data: the timesheet dict {name: {iso: {arrivee, depart, pause}}}.
+        output_path: .xlsx destination.
+    """
+    from timesheet import worked_hours, period_total
+
+    wb = Workbook()
+
+    # ── Sheet 1: payroll summary ────────────────────────────────────
+    summary = wb.active
+    summary.title = "Récapitulatif paie"
+    summary.sheet_properties.pageSetUpPr.fitToPage = True
+    summary.page_setup.fitToWidth = 1
+
+    period = f"Quinzaine du {dates[0].strftime('%d/%m/%Y')} au {dates[-1].strftime('%d/%m/%Y')}"
+    summary.merge_cells("A1:C1")
+    summary["A1"] = period
+    summary["A1"].font = Font(bold=True, size=14)
+    summary["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    summary.row_dimensions[1].height = 26
+
+    headers = ["Employé", "Rôle", "Total heures"]
+    for col, label in enumerate(headers, start=1):
+        c = summary.cell(row=2, column=col, value=label)
+        c.font = Font(bold=True, color=palette.HEADER_TEXT, size=11)
+        c.fill = _FILL_HEADER
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = _BORDER
+
+    grand_total = 0.0
+    for r, (name, role) in enumerate(employees, start=3):
+        total = period_total(timesheet_data, name, dates)
+        grand_total += total
+        for col, val in enumerate([name, role or "", total], start=1):
+            c = summary.cell(row=r, column=col, value=val)
+            c.border = _BORDER
+            c.alignment = Alignment(
+                horizontal="center" if col == 3 else "left", vertical="center")
+        summary.cell(row=r, column=3).number_format = "0.00"
+
+    tr = len(employees) + 3
+    summary.cell(row=tr, column=2, value="TOTAL").font = Font(bold=True)
+    tc = summary.cell(row=tr, column=3, value=grand_total)
+    tc.font = Font(bold=True)
+    tc.number_format = "0.00"
+    tc.border = _BORDER
+
+    summary.column_dimensions["A"].width = 22
+    summary.column_dimensions["B"].width = 20
+    summary.column_dimensions["C"].width = 14
+
+    # ── Sheet 2: daily detail ───────────────────────────────────────
+    detail = wb.create_sheet("Détail par jour")
+    detail.sheet_properties.pageSetUpPr.fitToPage = True
+    detail.page_setup.fitToWidth = 1
+    dheaders = ["Employé", "Date", "Jour", "Arrivée", "Départ", "Pause (min)", "Heures"]
+    for col, label in enumerate(dheaders, start=1):
+        c = detail.cell(row=1, column=col, value=label)
+        c.font = Font(bold=True, color=palette.HEADER_TEXT, size=11)
+        c.fill = _FILL_HEADER
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = _BORDER
+
+    from timesheet import get_entry
+    row = 2
+    for name, _role in employees:
+        for d in dates:
+            e = get_entry(timesheet_data, name, d.isoformat())
+            h = worked_hours(e["arrivee"], e["depart"], e.get("pause", 0))
+            if not e["arrivee"] and not e["depart"] and not h:
+                continue  # skip empty days in the detail
+            vals = [name, d.strftime("%d/%m/%Y"), WEEKDAYS_FR[d.weekday()],
+                    e["arrivee"], e["depart"], e.get("pause", 0), h]
+            for col, val in enumerate(vals, start=1):
+                c = detail.cell(row=row, column=col, value=val)
+                c.border = _BORDER
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            detail.cell(row=row, column=7).number_format = "0.00"
+            row += 1
+
+    for col, w in zip("ABCDEFG", [20, 12, 10, 9, 9, 12, 9]):
+        detail.column_dimensions[col].width = w
+
+    wb.save(output_path)
