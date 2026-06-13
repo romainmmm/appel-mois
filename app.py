@@ -13,9 +13,10 @@ Les fichiers Excel sont écrits directement dans le dossier Téléchargements du
 import base64
 import os
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 # Feuille du mois
@@ -24,6 +25,10 @@ from cleaning_schedule import compute_cleanings
 from distribution import assign_day
 from staff import Worker, WEEKDAYS_FR, default_workers, load_workers, save_workers
 from notes import ManualTask, TYPES, load_notes, save_notes, merge_into_schedule
+from timesheet import (
+    load_timesheet, save_timesheet, get_entry, set_entry,
+    worked_hours, period_total, fortnight, monday_of,
+)
 from room_layout import ALL_ROOMS
 from excel_export import build_month_workbook, build_day_sheet
 from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
@@ -36,6 +41,7 @@ st.set_page_config(page_title="Ménages — Motel Panoramique", page_icon="🧹"
 HERE = os.path.dirname(__file__)
 CONFIG_PATH = os.path.join(HERE, "staff_config.json")
 NOTES_PATH = os.path.join(HERE, "notes.json")
+TIMESHEET_PATH = os.path.join(HERE, "timesheet.json")
 LOGO_PATH = os.path.join(HERE, "assets", "logo_motel.png")
 FLOOR_OPTIONS = {"Aucun (flexible)": None, "100": 100, "200": 200, "300": 300, "400": 400}
 FLOOR_LABELS = {v: k for k, v in FLOOR_OPTIONS.items()}
@@ -138,8 +144,14 @@ def _init_notes():
         st.session_state.notes = load_notes(NOTES_PATH)
 
 
+def _init_timesheet():
+    if "timesheet" not in st.session_state:
+        st.session_state.timesheet = load_timesheet(TIMESHEET_PATH)
+
+
 _init_workers()
 _init_notes()
+_init_timesheet()
 
 _inject_style()
 _render_header()
@@ -151,10 +163,11 @@ st.text_input(
     help="Par défaut, votre dossier Téléchargements. Vous pouvez coller un autre chemin.",
 )
 
-tab_mois, tab_jour, tab_notes = st.tabs([
+tab_mois, tab_jour, tab_notes, tab_perso = st.tabs([
     "📅 Feuille du mois (réservations)",
     "📋 Feuille du jour (PDF état des chambres)",
     "📝 Notes / tâches manuelles",
+    "🗓️ Feuille du personnel",
 ])
 
 
@@ -401,3 +414,90 @@ with tab_notes:
                 st.session_state.notes.remove(n)
                 save_notes(st.session_state.notes, NOTES_PATH)
                 st.rerun()
+
+
+# ════════════════════════════════════════════════════════════════════
+#  ONGLET 4 — FEUILLE DU PERSONNEL (temps de travail)
+# ════════════════════════════════════════════════════════════════════
+def _to_time(s):
+    if not s:
+        return None
+    hh, mm = s.split(":")
+    return time(int(hh), int(mm))
+
+
+def _from_time(t):
+    if t is None or pd.isna(t):
+        return ""
+    try:
+        return t.strftime("%H:%M")
+    except Exception:
+        return ""
+
+
+with tab_perso:
+    st.caption(
+        "Suivi des heures par employé sur deux semaines : pour chaque jour, "
+        "heure d'arrivée, heure de départ et pause (en minutes). Les heures "
+        "travaillées sont calculées automatiquement. Tout est enregistré."
+    )
+
+    names = [w.name for w in sorted(st.session_state.workers, key=lambda x: x.order)]
+    if not names:
+        st.info("Ajoutez d'abord des préposées dans l'onglet « Feuille du mois ».")
+    else:
+        c1, c2 = st.columns([2, 2])
+        emp = c1.selectbox("Employé", names, key="ts_emp")
+        start = c2.date_input(
+            "Début de la quinzaine", value=monday_of(date.today()), key="ts_start")
+        dates = fortnight(start)
+        ts = st.session_state.timesheet
+
+        st.write(
+            f"Période : **{dates[0].strftime('%d/%m/%Y')} → {dates[-1].strftime('%d/%m/%Y')}**")
+
+        rows = []
+        for d in dates:
+            e = get_entry(ts, emp, d.isoformat())
+            rows.append({
+                "Jour": f"{WEEKDAYS_FR[d.weekday()][:3]} {d.strftime('%d/%m')}",
+                "Arrivée": _to_time(e["arrivee"]),
+                "Départ": _to_time(e["depart"]),
+                "Pause (min)": int(e.get("pause", 0)),
+                "Heures": worked_hours(e["arrivee"], e["depart"], e.get("pause", 0)),
+            })
+        df = pd.DataFrame(rows)
+
+        edited = st.data_editor(
+            df, key=f"ts_editor_{emp}_{start.isoformat()}",
+            hide_index=True, use_container_width=True,
+            column_config={
+                "Jour": st.column_config.TextColumn("Jour", disabled=True),
+                "Arrivée": st.column_config.TimeColumn("Arrivée", format="HH:mm"),
+                "Départ": st.column_config.TimeColumn("Départ", format="HH:mm"),
+                "Pause (min)": st.column_config.NumberColumn("Pause (min)", min_value=0, step=5),
+                "Heures": st.column_config.NumberColumn("Heures", disabled=True, format="%.2f"),
+            },
+        )
+
+        changed = False
+        for i, d in enumerate(dates):
+            arr = _from_time(edited.iloc[i]["Arrivée"])
+            dep = _from_time(edited.iloc[i]["Départ"])
+            pv = edited.iloc[i]["Pause (min)"]
+            pause = int(pv) if pd.notna(pv) else 0
+            existing = get_entry(ts, emp, d.isoformat())
+            if (arr, dep, pause) != (existing["arrivee"], existing["depart"], int(existing.get("pause", 0))):
+                set_entry(ts, emp, d.isoformat(), arr, dep, pause)
+                changed = True
+        if changed:
+            save_timesheet(ts, TIMESHEET_PATH)
+            st.rerun()
+
+        st.metric(f"Total des heures — {emp}", f"{period_total(ts, emp, dates)} h")
+
+        st.divider()
+        st.markdown("**Totaux de la quinzaine (toute l'équipe)**")
+        summary = pd.DataFrame(
+            [{"Employé": n, "Heures": period_total(ts, n, dates)} for n in names])
+        st.dataframe(summary, hide_index=True, use_container_width=True)
