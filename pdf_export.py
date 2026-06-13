@@ -45,10 +45,12 @@ def _grid_pdf(title, room_cell_fn, legend_items, output_path):
     col_pairs = [("A", "B"), ("C", "D"), ("E", "F")]
 
     data, style_cmds = [], [
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, _C_GRID),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
     ]
     for grid_r, er in enumerate(excel_rows):
         row_cells = []
@@ -81,7 +83,7 @@ def _grid_pdf(title, room_cell_fn, legend_items, output_path):
     legend = Table([legend_cells],
                    colWidths=[26 * mm] + [32 * mm] * len(legend_items))
     leg_style = [
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("ALIGN", (1, 0), (-1, 0), "CENTER"),
         ("GRID", (1, 0), (-1, 0), 0.4, _C_GRID),
     ]
@@ -89,10 +91,12 @@ def _grid_pdf(title, room_cell_fn, legend_items, output_path):
         leg_style.append(("BACKGROUND", (i, 0), (i, 0), col))
     legend.setStyle(TableStyle(leg_style))
 
+    grid_title = ParagraphStyle(
+        "gt", parent=_TITLE, fontSize=13, spaceAfter=4)
     doc = SimpleDocTemplate(
         output_path, pagesize=landscape(A4),
-        leftMargin=10 * mm, rightMargin=10 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
-    doc.build([Paragraph(title, _TITLE), table, Spacer(1, 6 * mm), legend])
+        leftMargin=8 * mm, rightMargin=8 * mm, topMargin=7 * mm, bottomMargin=6 * mm)
+    doc.build([Paragraph(title, grid_title), table, Spacer(1, 2.5 * mm), legend])
 
 
 # ── Monthly dashboard PDF ───────────────────────────────────────────
