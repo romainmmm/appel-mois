@@ -23,7 +23,7 @@ from cleaning_schedule import compute_cleanings
 from distribution import assign_day
 from staff import Worker, WEEKDAYS_FR, default_workers, load_workers, save_workers
 from excel_export import build_month_workbook, build_day_sheet
-from pdf_export import build_month_pdf, build_day_pdf
+from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
 # Feuille du jour (housekeeping, inchangé)
 from pdf_parser import parse_pdf
 from excel_generator import generate_excel
@@ -43,10 +43,16 @@ def downloads_dir() -> Path:
 
 
 def save_and_report(build_fn, filename: str):
-    """Run build_fn(path) writing into Downloads, then show the exact path."""
-    target = downloads_dir() / filename
+    """Run build_fn(path) writing into the chosen folder, then show the path."""
+    dest = Path(st.session_state.get("dest_dir", str(downloads_dir())))
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        st.error(f"Dossier de destination invalide : {dest}")
+        return
+    target = dest / filename
     build_fn(str(target))
-    st.success("✅ Fichier enregistré dans votre dossier Téléchargements :")
+    st.success("✅ Fichier enregistré ici :")
     st.code(str(target), language=None)
 
 
@@ -60,6 +66,13 @@ def _init_workers():
 _init_workers()
 
 st.title("🧹 Gestion des ménages — Motel Panoramique")
+
+st.text_input(
+    "📁 Dossier où enregistrer les fichiers générés",
+    value=st.session_state.get("dest_dir", str(downloads_dir())),
+    key="dest_dir",
+    help="Par défaut, votre dossier Téléchargements. Vous pouvez coller un autre chemin.",
+)
 
 tab_mois, tab_jour = st.tabs([
     "📅 Feuille du mois (réservations)",
@@ -245,11 +258,16 @@ with tab_jour:
                     extra = f" ({r.extra})" if r.extra else ""
                     st.write(f"🔵 {r.room} — {r.name}{extra}")
 
+            fmt_hk = st.radio(
+                "Format de la feuille du jour", ["Excel", "PDF"],
+                horizontal=True, key="fmt_jour_hk")
             if st.button("📥 Enregistrer la feuille du jour"):
                 slug = (data["date"] or "feuille_du_jour").replace(" ", "_")[:30]
-                save_and_report(
-                    lambda p: generate_excel(data, p),
-                    f"Feuille_de_jour_{slug}.xlsx")
+                base = f"Feuille_de_jour_{slug}"
+                if fmt_hk == "Excel":
+                    save_and_report(lambda p: generate_excel(data, p), base + ".xlsx")
+                else:
+                    save_and_report(lambda p: build_housekeeping_day_pdf(data, p), base + ".pdf")
         except Exception as e:
             st.error(f"Erreur lors du traitement : {e}")
         finally:

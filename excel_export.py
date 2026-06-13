@@ -20,16 +20,17 @@ from cleaning_schedule import CleaningTask
 from staff import Worker, WEEKDAYS_FR
 from distribution import assign_day, DayAssignment
 from room_layout import ROOM_LAYOUT
+import palette
 
 
-# Fills
-_FILL_DEPART = PatternFill("solid", fgColor="FFC7CE")    # pink
-_FILL_SERVICE = PatternFill("solid", fgColor="BDD7EE")   # blue
-_FILL_MANAGER = PatternFill("solid", fgColor="FFD966")   # amber (unassigned)
-_FILL_HEADER = PatternFill("solid", fgColor="305496")    # dark blue
-_FILL_WEEKEND = PatternFill("solid", fgColor="F2F2F2")   # light grey
+# Fills (sober palette)
+_FILL_DEPART = PatternFill("solid", fgColor=palette.DEPART)
+_FILL_SERVICE = PatternFill("solid", fgColor=palette.SERVICE)
+_FILL_MANAGER = PatternFill("solid", fgColor=palette.MANAGER)
+_FILL_HEADER = PatternFill("solid", fgColor=palette.HEADER)
+_FILL_WEEKEND = PatternFill("solid", fgColor=palette.WEEKEND)
 
-_THIN = Side(style="thin")
+_THIN = Side(style="thin", color=palette.GRID)
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 
 _ROW_HEIGHT = 35

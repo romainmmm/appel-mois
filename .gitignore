@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.tmp.xlsx
-.streamlit/
 apercu_*.xlsx
 apercu_*.pdf
 staff_config.json

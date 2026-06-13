@@ -7,19 +7,20 @@ from openpyxl.worksheet.page import PageMargins
 
 from room_layout import ROOM_LAYOUT, ALL_ROOMS
 from pdf_parser import RoomEntry
+import palette
 
 
-# Color coding for task types
-_FILL_ARRIVEE = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
-_FILL_DEPART = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")   # red/pink
-_FILL_SERVICE = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")  # blue
-_FILL_TURNOVER = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")  # yellow
+# Color coding for task types (sober palette)
+_FILL_ARRIVEE = PatternFill("solid", fgColor=palette.ARRIVEE)
+_FILL_DEPART = PatternFill("solid", fgColor=palette.DEPART)
+_FILL_SERVICE = PatternFill("solid", fgColor=palette.SERVICE)
+_FILL_TURNOVER = PatternFill("solid", fgColor=palette.TURNOVER)
 
 _THIN_BORDER = Border(
-    left=Side(style="thin"),
-    right=Side(style="thin"),
-    top=Side(style="thin"),
-    bottom=Side(style="thin"),
+    left=Side(style="thin", color=palette.GRID),
+    right=Side(style="thin", color=palette.GRID),
+    top=Side(style="thin", color=palette.GRID),
+    bottom=Side(style="thin", color=palette.GRID),
 )
 
 _ROW_HEIGHT = 35  # points — tall single line
