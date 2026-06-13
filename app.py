@@ -10,6 +10,7 @@ Les fichiers Excel sont écrits directement dans le dossier Téléchargements du
 (détecté automatiquement) — le chemin exact est affiché après génération.
 """
 
+import base64
 import os
 import tempfile
 from datetime import date, datetime
@@ -32,10 +33,76 @@ from excel_generator import generate_excel
 
 st.set_page_config(page_title="Ménages — Motel Panoramique", page_icon="🧹", layout="wide")
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "staff_config.json")
-NOTES_PATH = os.path.join(os.path.dirname(__file__), "notes.json")
+HERE = os.path.dirname(__file__)
+CONFIG_PATH = os.path.join(HERE, "staff_config.json")
+NOTES_PATH = os.path.join(HERE, "notes.json")
+LOGO_PATH = os.path.join(HERE, "assets", "logo_motel.png")
 FLOOR_OPTIONS = {"Aucun (flexible)": None, "100": 100, "200": 200, "300": 300, "400": 400}
 FLOOR_LABELS = {v: k for k, v in FLOOR_OPTIONS.items()}
+
+# Brand colours (from the Motel Panoramique site)
+GOLD = "#C8941A"
+GOLD_DARK = "#A87714"
+CHARCOAL = "#2B2B2B"
+
+
+def _inject_style():
+    st.markdown(
+        f"""
+        <style>
+        /* App feel: hide Streamlit chrome */
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
+        [data-testid="stToolbar"] {{display: none;}}
+        .block-container {{padding-top: 1.4rem;}}
+
+        /* Brand header banner */
+        .brand {{
+            display: flex; align-items: center; gap: 16px;
+            padding: 10px 4px 14px 4px;
+            border-bottom: 3px solid {GOLD};
+            margin-bottom: 14px;
+        }}
+        .brand img {{height: 54px; width: auto;}}
+        .brand .titles {{line-height: 1.15;}}
+        .brand .t1 {{font-size: 1.5rem; font-weight: 700; color: {CHARCOAL};
+                     letter-spacing: .5px;}}
+        .brand .t2 {{font-size: .95rem; color: {GOLD_DARK}; font-weight: 600;}}
+
+        /* Buttons */
+        .stButton > button {{
+            background: {GOLD}; color: white; border: none;
+            border-radius: 8px; font-weight: 600; padding: .45rem 1rem;
+        }}
+        .stButton > button:hover {{background: {GOLD_DARK}; color: white;}}
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {{gap: 4px;}}
+        .stTabs [aria-selected="true"] {{color: {GOLD_DARK} !important;}}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_header():
+    logo_html = ""
+    if os.path.exists(LOGO_PATH):
+        with open(LOGO_PATH, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        logo_html = f'<img src="data:image/png;base64,{b64}" alt="logo"/>'
+    st.markdown(
+        f"""
+        <div class="brand">
+            {logo_html}
+            <div class="titles">
+                <div class="t1">MOTEL PANORAMIQUE</div>
+                <div class="t2">Gestion des ménages · Saguenay, Qc</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def downloads_dir() -> Path:
@@ -74,7 +141,8 @@ def _init_notes():
 _init_workers()
 _init_notes()
 
-st.title("🧹 Gestion des ménages — Motel Panoramique")
+_inject_style()
+_render_header()
 
 st.text_input(
     "📁 Dossier où enregistrer les fichiers générés",
