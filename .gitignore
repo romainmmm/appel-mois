@@ -9,3 +9,5 @@ notes.json
 timesheet.json
 extra_employees.json
 app_config.json
+data/
+*.db

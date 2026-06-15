@@ -1,54 +1,55 @@
-"""Streamlit app — Motel Panoramique.
+"""Streamlit app — Motel Panoramique (version en ligne).
 
-Deux sections :
-  • Feuille du mois : à partir de l'extraction de réservations (.xls), génère le
-    calendrier mensuel des ménages et la répartition par préposée.
-  • Feuille du jour : à partir du PDF « état des chambres », génère la feuille de
-    jour (comportement identique au projet housekeeping).
-
-Les fichiers Excel sont écrits directement dans le dossier Téléchargements du PC
-(détecté automatiquement) — le chemin exact est affiché après génération.
+Trois sections (Feuille du mois, Feuille du jour, Notes, Feuille du personnel).
+Version serveur : authentification, stockage SQLite, téléchargements navigateur.
 """
 
 import base64
 import os
 import tempfile
+import re
 from datetime import date, datetime, time
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-# Feuille du mois
+# Domaine métier
 from reservation_parser import parse_reservations
 from cleaning_schedule import compute_cleanings
 from distribution import assign_day
-from staff import Worker, WEEKDAYS_FR, default_workers, load_workers, save_workers
-from notes import ManualTask, TYPES, load_notes, save_notes, merge_into_schedule
+from staff import Worker, WEEKDAYS_FR
+from notes import ManualTask, TYPES, merge_into_schedule
 from timesheet import (
-    load_timesheet, save_timesheet, get_entry, set_entry,
-    worked_hours, period_total, period_tips, fortnight, monday_of,
+    get_entry, set_entry, worked_hours, period_total, period_tips,
+    fortnight, monday_of,
 )
-from extra_staff import ExtraEmployee, load_extra_staff, save_extra_staff
+from extra_staff import ExtraEmployee
 from room_layout import ALL_ROOMS
 from excel_export import build_month_workbook, build_day_sheet, build_timesheet_workbook
 from pdf_export import build_month_pdf, build_day_pdf, build_housekeeping_day_pdf
-# Feuille du jour (housekeeping, inchangé)
 from pdf_parser import parse_pdf
 from excel_generator import generate_excel
+# Stockage + authentification (version en ligne)
+import database as db
+import auth
 
 st.set_page_config(page_title="Ménages — Motel Panoramique", page_icon="🧹", layout="wide")
 
-HERE = os.path.dirname(__file__)
-CONFIG_PATH = os.path.join(HERE, "staff_config.json")
-NOTES_PATH = os.path.join(HERE, "notes.json")
-TIMESHEET_PATH = os.path.join(HERE, "timesheet.json")
-EXTRA_PATH = os.path.join(HERE, "extra_employees.json")
-SETTINGS_PATH = os.path.join(HERE, "app_config.json")
+HERE = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(HERE, "assets", "logo_motel.png")
-DEFAULT_SETTINGS = {"delete_password": "motel"}
 FLOOR_OPTIONS = {"Aucun (flexible)": None, "100": 100, "200": 200, "300": 300, "400": 400}
 FLOOR_LABELS = {v: k for k, v in FLOOR_OPTIONS.items()}
+
+
+@st.cache_resource
+def get_db():
+    conn = db.get_conn(db.db_path(HERE))
+    db.migrate_from_json(conn, HERE)
+    return conn
+
+
+CONN = get_db()
 
 # Brand colours (from the Motel Panoramique site)
 GOLD = "#C8941A"
@@ -115,73 +116,41 @@ def _render_header():
     )
 
 
-def downloads_dir() -> Path:
-    """The current PC's Downloads folder (resolved at runtime — never hardcoded)."""
-    d = Path.home() / "Downloads"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
 def save_and_report(build_fn, filename: str):
-    """Run build_fn(path) writing into the chosen folder, then show the path."""
-    dest = Path(st.session_state.get("dest_dir", str(downloads_dir())))
+    """Build the file in memory and offer it as a browser download."""
+    suffix = Path(filename).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as t:
+        tmp = t.name
     try:
-        dest.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        st.error(f"Dossier de destination invalide : {dest}")
-        return
-    target = dest / filename
-    build_fn(str(target))
-    st.success("✅ Fichier enregistré ici :")
-    st.code(str(target), language=None)
+        build_fn(tmp)
+        with open(tmp, "rb") as f:
+            data = f.read()
+    finally:
+        os.unlink(tmp)
+    mime = ("application/pdf" if suffix == ".pdf"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    key = "dl_" + re.sub(r"\W+", "_", filename)
+    st.download_button(f"⬇️ Télécharger {filename}", data, file_name=filename, mime=mime, key=key)
 
 
-def _init_workers():
+def _init_state():
     if "workers" not in st.session_state:
-        st.session_state.workers = (
-            load_workers(CONFIG_PATH) if os.path.exists(CONFIG_PATH) else default_workers()
-        )
-
-
-def _init_notes():
+        st.session_state.workers = db.load_workers(CONN)
     if "notes" not in st.session_state:
-        st.session_state.notes = load_notes(NOTES_PATH)
-
-
-def _init_timesheet():
+        st.session_state.notes = db.load_notes(CONN)
     if "timesheet" not in st.session_state:
-        st.session_state.timesheet = load_timesheet(TIMESHEET_PATH)
-
-
-def _init_extra():
+        st.session_state.timesheet = db.load_timesheet(CONN)
     if "extra" not in st.session_state:
-        st.session_state.extra = load_extra_staff(EXTRA_PATH)
-
-
-def _load_settings() -> dict:
-    import json
-    s = dict(DEFAULT_SETTINGS)
-    try:
-        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
-            s.update(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    return s
+        st.session_state.extra = db.load_extra_staff(CONN)
+    if "settings" not in st.session_state:
+        st.session_state.settings = db.load_settings(CONN)
 
 
 def _save_settings(s: dict) -> None:
-    import json
-    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
-        json.dump(s, f, ensure_ascii=False, indent=2)
-
-
-def _init_settings():
-    if "settings" not in st.session_state:
-        st.session_state.settings = _load_settings()
+    db.save_settings(CONN, s)
 
 
 def request_delete(kind: str, ident: str, label: str) -> None:
-    """Flag an item for deletion; the confirmation box will ask for the password."""
     st.session_state.pending_delete = {"kind": kind, "ident": ident, "label": label}
 
 
@@ -189,11 +158,11 @@ def _perform_delete(pend: dict) -> None:
     if pend["kind"] == "worker":
         st.session_state.workers = [
             w for w in st.session_state.workers if w.name != pend["ident"]]
-        save_workers(st.session_state.workers, CONFIG_PATH)
+        db.save_workers(CONN, st.session_state.workers)
     elif pend["kind"] == "extra":
         st.session_state.extra = [
             x for x in st.session_state.extra if x.name != pend["ident"]]
-        save_extra_staff(st.session_state.extra, EXTRA_PATH)
+        db.save_extra_staff(CONN, st.session_state.extra)
 
 
 def render_delete_confirm() -> None:
@@ -216,21 +185,43 @@ def render_delete_confirm() -> None:
         st.rerun()
 
 
-_init_workers()
-_init_notes()
-_init_timesheet()
-_init_extra()
-_init_settings()
+def render_login() -> None:
+    _inject_style()
+    _render_header()
+    users = db.load_users(CONN)
+    if not users:
+        st.error("Aucun compte n'est configuré. Sur le serveur, exécutez :\n\n"
+                 "`python manage_users.py set gerant gerant`")
+        st.stop()
+    st.subheader("Connexion")
+    with st.form("login"):
+        u = st.text_input("Identifiant")
+        p = st.text_input("Mot de passe", type="password")
+        if st.form_submit_button("Se connecter"):
+            res = auth.authenticate(users, u, p)
+            if res:
+                st.session_state.auth = res
+                st.rerun()
+            else:
+                st.error("Identifiant ou mot de passe incorrect.")
+    st.stop()
 
+
+# ── Authentication gate ─────────────────────────────────────────────
+if "auth" not in st.session_state:
+    render_login()
+
+_init_state()
 _inject_style()
 _render_header()
 
-st.text_input(
-    "📁 Dossier où enregistrer les fichiers générés",
-    value=st.session_state.get("dest_dir", str(downloads_dir())),
-    key="dest_dir",
-    help="Par défaut, votre dossier Téléchargements. Vous pouvez coller un autre chemin.",
-)
+# Top bar: who is logged in + logout
+_bar = st.columns([6, 2, 1.4])
+_bar[1].caption(f"Connecté : **{st.session_state.auth['username']}** "
+                f"({st.session_state.auth['role']})")
+if _bar[2].button("Se déconnecter"):
+    del st.session_state.auth
+    st.rerun()
 
 render_delete_confirm()
 
@@ -299,7 +290,7 @@ with tab_mois:
                 Worker(name="Nouvelle", order=nxt, weekly_max={wd: 6 for wd in range(7)}))
             st.rerun()
         if b2.button("💾 Enregistrer l'équipe"):
-            save_workers(st.session_state.workers, CONFIG_PATH)
+            db.save_workers(CONN, st.session_state.workers)
             st.success("Équipe enregistrée.")
 
         st.markdown("---")
@@ -477,7 +468,7 @@ with tab_notes:
             else:
                 st.session_state.notes.append(ManualTask(
                     date=n_date.isoformat(), type=n_type, room=room, comment=n_comment))
-                save_notes(st.session_state.notes, NOTES_PATH)
+                db.save_notes(CONN, st.session_state.notes)
                 st.rerun()
 
     st.divider()
@@ -495,7 +486,7 @@ with tab_notes:
             c[3].write(n.comment or "")
             if c[4].button("🗑", key=f"delnote_{i}"):
                 st.session_state.notes.remove(n)
-                save_notes(st.session_state.notes, NOTES_PATH)
+                db.save_notes(CONN, st.session_state.notes)
                 st.rerun()
 
 
@@ -540,7 +531,7 @@ with tab_perso:
             if ec[2].form_submit_button("➕") and x_name.strip():
                 st.session_state.extra.append(
                     ExtraEmployee(name=x_name.strip(), role=x_role.strip()))
-                save_extra_staff(st.session_state.extra, EXTRA_PATH)
+                db.save_extra_staff(CONN, st.session_state.extra)
                 st.rerun()
         for i, x in enumerate(st.session_state.extra):
             rc = st.columns([3, 3, 1])
@@ -621,7 +612,7 @@ with tab_perso:
             tips_per_day.append(round(tips, 2))
             total += h
             total_tips += tips
-        save_timesheet(ts, TIMESHEET_PATH)
+        db.save_timesheet(CONN, ts)
 
         # Per-day recap (read-only)
         recap_df = pd.DataFrame({
