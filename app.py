@@ -27,7 +27,7 @@ from staff import Worker, WEEKDAYS_FR, default_workers, load_workers, save_worke
 from notes import ManualTask, TYPES, load_notes, save_notes, merge_into_schedule
 from timesheet import (
     load_timesheet, save_timesheet, get_entry, set_entry,
-    worked_hours, period_total, fortnight, monday_of,
+    worked_hours, period_total, period_tips, fortnight, monday_of,
 )
 from extra_staff import ExtraEmployee, load_extra_staff, save_extra_staff
 from room_layout import ALL_ROOMS
@@ -584,6 +584,7 @@ with tab_perso:
                     "Arrivée": _to_time(e["arrivee"]),
                     "Départ": _to_time(e["depart"]),
                     "Pause (min)": int(e.get("pause", 0)),
+                    "Pourboires ($)": float(e.get("tips", 0)),
                 })
             st.session_state[df_key] = pd.DataFrame(rows)
 
@@ -597,41 +598,59 @@ with tab_perso:
                 "Arrivée": st.column_config.TimeColumn("Arrivée", format="HH:mm", step=60),
                 "Départ": st.column_config.TimeColumn("Départ", format="HH:mm", step=60),
                 "Pause (min)": st.column_config.NumberColumn("Pause (min)", min_value=0, step=5),
+                "Pourboires ($)": st.column_config.NumberColumn(
+                    "Pourboires ($)", min_value=0, step=1, format="%.2f"),
             },
         )
 
         # Compute hours directly from what was typed, persist, and total it.
         total = 0.0
+        total_tips = 0.0
         hours_per_day = []
+        tips_per_day = []
         for i, d in enumerate(dates):
             arr = _from_time(edited.iloc[i]["Arrivée"])
             dep = _from_time(edited.iloc[i]["Départ"])
             pv = edited.iloc[i]["Pause (min)"]
             pause = int(pv) if pd.notna(pv) else 0
-            set_entry(ts, emp, d.isoformat(), arr, dep, pause)
+            tv = edited.iloc[i]["Pourboires ($)"]
+            tips = float(tv) if pd.notna(tv) else 0.0
+            set_entry(ts, emp, d.isoformat(), arr, dep, pause, tips)
             h = worked_hours(arr, dep, pause)
             hours_per_day.append(h)
+            tips_per_day.append(round(tips, 2))
             total += h
+            total_tips += tips
         save_timesheet(ts, TIMESHEET_PATH)
 
-        # Per-day hours (read-only) next to the day labels
-        hours_df = pd.DataFrame({
+        # Per-day recap (read-only)
+        recap_df = pd.DataFrame({
             "Jour": edited["Jour"],
             "Heures travaillées": hours_per_day,
+            "Pourboires ($)": tips_per_day,
         })
         st.dataframe(
-            hours_df, hide_index=True, use_container_width=True,
-            column_config={"Heures travaillées": st.column_config.NumberColumn(format="%.2f h")},
+            recap_df, hide_index=True, use_container_width=True,
+            column_config={
+                "Heures travaillées": st.column_config.NumberColumn(format="%.2f h"),
+                "Pourboires ($)": st.column_config.NumberColumn(format="%.2f $"),
+            },
         )
 
-        st.metric(f"Total des heures — {emp}", f"{round(total, 2)} h")
+        m1, m2 = st.columns(2)
+        m1.metric(f"Total des heures — {emp}", f"{round(total, 2)} h")
+        m2.metric(f"Total pourboires — {emp}", f"{round(total_tips, 2)} $")
 
         st.divider()
         st.markdown("**Totaux de la quinzaine (tout le personnel)**")
         summary = pd.DataFrame(
             [{"Employé": n, "Rôle": role_of.get(n, ""),
-              "Heures": period_total(ts, n, dates)} for n in names])
-        st.dataframe(summary, hide_index=True, use_container_width=True)
+              "Heures": period_total(ts, n, dates),
+              "Pourboires ($)": period_tips(ts, n, dates)} for n in names])
+        st.dataframe(
+            summary, hide_index=True, use_container_width=True,
+            column_config={"Pourboires ($)": st.column_config.NumberColumn(format="%.2f $")},
+        )
 
         if st.button("📥 Télécharger l'Excel de la quinzaine (pour les paies)"):
             employees = [(n, role_of.get(n, "")) for n in names]

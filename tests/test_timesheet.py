@@ -4,7 +4,7 @@ from datetime import date
 
 from timesheet import (
     load_timesheet, save_timesheet, get_entry, set_entry,
-    worked_hours, period_total, fortnight, monday_of,
+    worked_hours, period_total, period_tips, fortnight, monday_of,
 )
 
 
@@ -37,10 +37,24 @@ class TestEntries:
         data = {}
         set_entry(data, "Anna", "2026-06-15", "08:00", "16:00", 30)
         e = get_entry(data, "Anna", "2026-06-15")
-        assert e == {"arrivee": "08:00", "depart": "16:00", "pause": 30}
+        assert e == {"arrivee": "08:00", "depart": "16:00", "pause": 30, "tips": 0.0}
 
     def test_get_missing_is_blank(self):
-        assert get_entry({}, "Bob", "2026-06-15") == {"arrivee": "", "depart": "", "pause": 0}
+        assert get_entry({}, "Bob", "2026-06-15") == {
+            "arrivee": "", "depart": "", "pause": 0, "tips": 0.0}
+
+    def test_tips_stored_and_totalled(self):
+        data = {}
+        set_entry(data, "Anna", "2026-06-15", "08:00", "16:00", 0, tips=25.50)
+        set_entry(data, "Anna", "2026-06-16", "08:00", "16:00", 0, tips=10)
+        assert get_entry(data, "Anna", "2026-06-15")["tips"] == 25.50
+        days = fortnight(date(2026, 6, 15))
+        assert period_tips(data, "Anna", days) == 35.5
+
+    def test_tips_only_day_is_kept(self):
+        data = {}
+        set_entry(data, "Anna", "2026-06-15", "", "", 0, tips=12)
+        assert get_entry(data, "Anna", "2026-06-15")["tips"] == 12.0
 
     def test_empty_entry_removed(self):
         data = {"Anna": {"2026-06-15": {"arrivee": "08:00", "depart": "16:00", "pause": 0}}}

@@ -24,14 +24,22 @@ def save_timesheet(data: dict, path: str) -> None:
 
 
 def get_entry(data: dict, employee: str, iso: str) -> dict:
-    """Return the entry for an employee/date, or a blank one."""
-    return data.get(employee, {}).get(iso, {"arrivee": "", "depart": "", "pause": 0})
+    """Return the entry for an employee/date (normalised), or a blank one."""
+    e = data.get(employee, {}).get(iso)
+    if e is None:
+        return {"arrivee": "", "depart": "", "pause": 0, "tips": 0.0}
+    return {
+        "arrivee": e.get("arrivee", ""),
+        "depart": e.get("depart", ""),
+        "pause": int(e.get("pause", 0)),
+        "tips": float(e.get("tips", 0)),
+    }
 
 
 def set_entry(data: dict, employee: str, iso: str,
-              arrivee: str, depart: str, pause: int) -> None:
+              arrivee: str, depart: str, pause: int, tips: float = 0.0) -> None:
     """Store an entry; remove it entirely if the day is empty."""
-    if not arrivee and not depart and not pause:
+    if not arrivee and not depart and not pause and not tips:
         if employee in data and iso in data[employee]:
             del data[employee][iso]
         return
@@ -39,6 +47,7 @@ def set_entry(data: dict, employee: str, iso: str,
         "arrivee": arrivee or "",
         "depart": depart or "",
         "pause": int(pause or 0),
+        "tips": round(float(tips or 0), 2),
     }
 
 
@@ -64,6 +73,11 @@ def period_total(data: dict, employee: str, dates: list[date]) -> float:
         e = get_entry(data, employee, d.isoformat())
         total += worked_hours(e["arrivee"], e["depart"], e.get("pause", 0))
     return round(total, 2)
+
+
+def period_tips(data: dict, employee: str, dates: list[date]) -> float:
+    """Total tips for an employee over the given dates."""
+    return round(sum(get_entry(data, employee, d.isoformat())["tips"] for d in dates), 2)
 
 
 def fortnight(start: date) -> list[date]:
