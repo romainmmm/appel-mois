@@ -4,7 +4,7 @@ Guide complet pour mettre l'application (branche **`web-only`**) en ligne sur
 l'hébergement dotCanada, sur un sous-domaine privé. Aucune connaissance serveur
 requise : tout passe par le **cPanel** et le **gestionnaire de fichiers**.
 
-> Branche concernée : **`web-app`** du dépôt
+> Branche concernée : **`web-only`** du dépôt
 > `github.com/romainmmm/appel-mois`.
 
 ---
@@ -133,9 +133,9 @@ define('APP_TITLE', 'Gestion des ménages — Motel Panoramique');
 2. Crée le compte **gérant** : identifiant + mot de passe.
 3. La page se désactive automatiquement une fois le compte créé.
 
-> Pour ajouter le compte **réception** : pour l'instant, tu peux créer un
-> 2ᵉ compte via phpMyAdmin (m'écrire et je te donne la marche à suivre), ou
-> j'ajoute bientôt une page d'administration des comptes.
+> Pour ajouter le compte **réception** (et gérer les comptes ensuite) :
+> connecte-toi en gérant → onglet **« 👤 Comptes »** → créer le compte
+> réception. Cet onglet n'est visible que par le gérant.
 
 **✅ Test 6 :** `setup.php` affiche « Compte gérant créé ».
 
@@ -207,8 +207,8 @@ Puis re-téléverse `site.zip` dans le dossier du sous-domaine et extrais
 
 ## Note importante
 
-Cette version web contient pour l'instant la **Feuille du personnel** (heures,
-pourboires, paie) — la fonction qui profite le plus du partage entre postes.
-Les **Notes** et la **répartition des ménages** (Feuille du mois / du jour)
-seront ajoutées ensuite ; la répartition nécessitera de vérifier que dotCanada
-autorise les extensions PHP pour lire les `.xls`/PDF (zip, gd, mbstring).
+Cette version web contient : **connexion + comptes**, la **Feuille du
+personnel** (heures, pourboires, paie CSV) et les **Notes**. La **répartition
+des ménages** (Feuille du mois / du jour) sera ajoutée ensuite ; elle
+nécessitera de vérifier que dotCanada autorise les extensions PHP pour lire les
+`.xls`/PDF (zip, gd, mbstring).
