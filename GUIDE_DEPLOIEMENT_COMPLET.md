@@ -1,6 +1,6 @@
 # Déploiement A → Z — Version web (PHP + MySQL) sur dotCanada
 
-Guide complet pour mettre l'application (branche **`web-app`**) en ligne sur
+Guide complet pour mettre l'application (branche **`web-only`**) en ligne sur
 l'hébergement dotCanada, sur un sous-domaine privé. Aucune connaissance serveur
 requise : tout passe par le **cPanel** et le **gestionnaire de fichiers**.
 
@@ -17,7 +17,7 @@ Ouvre **PowerShell** sur le PC où tu prépares le déploiement.
 
 ```powershell
 cd $HOME\Documents
-git clone -b web-app https://github.com/romainmmm/appel-mois.git appel-mois-web
+git clone -b web-only https://github.com/romainmmm/appel-mois.git appel-mois-web
 cd appel-mois-web
 ```
 
@@ -26,20 +26,20 @@ cd appel-mois-web
 ```powershell
 cd $HOME\Documents\appel-mois-web
 git fetch origin
-git checkout web-app
+git checkout web-only
 git pull
 ```
 
-### Préparer le fichier à téléverser (un ZIP du dossier `web/`)
+### Préparer le fichier à téléverser (un ZIP du site)
 
 ```powershell
-git archive --format=zip --output=web.zip web-app:web
+git archive --format=zip --output=site.zip web-only
 ```
 
-➡️ Cela crée **`web.zip`** contenant exactement ce qu'il faut mettre en ligne
+➡️ Cela crée **`site.zip`** contenant exactement ce qu'il faut mettre en ligne
 (sans le `config.php` local ni la base de test). C'est ce ZIP qu'on téléverse.
 
-**✅ Test 0 :** le fichier `web.zip` est créé dans le dossier.
+**✅ Test 0 :** le fichier `site.zip` est créé dans le dossier.
 
 ---
 
@@ -76,18 +76,16 @@ vide ou « Index of » (le dossier existe).
 
 1. cPanel → **Gestionnaire de fichiers**.
 2. Va dans le **dossier racine du sous-domaine** (Phase 1).
-3. **Téléverser** `web.zip`.
-4. Clic droit sur `web.zip` → **Extraire** (« Extract »).
+3. **Téléverser** `site.zip`.
+4. Clic droit sur `site.zip` → **Extraire** (« Extract »).
 5. Les fichiers (`index.php`, `login.php`, `lib/`, `assets/`…) doivent être
-   **directement** dans le dossier du sous-domaine (pas dans un sous-dossier
-   `web/`). Si l'extraction a créé un dossier `web/`, déplace son contenu d'un
-   niveau vers le haut.
-6. Supprime `web.zip`.
+   **directement** dans le dossier du sous-domaine.
+6. Supprime `site.zip`.
 
 ### Option B — FTP (FileZilla)
 
-Connecte-toi en FTP (identifiants dans cPanel → **Comptes FTP**) et copie le
-contenu du dossier `web/` dans le dossier du sous-domaine.
+Connecte-toi en FTP (identifiants dans cPanel → **Comptes FTP**) et copie tous
+les fichiers du dépôt dans le dossier du sous-domaine.
 
 **✅ Test 3 :** dans le gestionnaire de fichiers, tu vois `index.php`,
 `login.php`, `setup.php`, le dossier `lib/` et `assets/` dans le dossier du
@@ -177,12 +175,12 @@ Quand de nouvelles versions sont publiées :
 
 ```powershell
 cd $HOME\Documents\appel-mois-web
-git checkout web-app
+git checkout web-only
 git pull
-git archive --format=zip --output=web.zip web-app:web
+git archive --format=zip --output=site.zip web-only
 ```
 
-Puis re-téléverse `web.zip` dans le dossier du sous-domaine et extrais
+Puis re-téléverse `site.zip` dans le dossier du sous-domaine et extrais
 (**sans écraser `config.php`**). Les données dans MySQL ne sont pas touchées.
 
 ---
@@ -203,7 +201,7 @@ Puis re-téléverse `web.zip` dans le dossier du sous-domaine et extrais
 | Changer les identifiants de base | `config.php` |
 | Ajouter un sous-domaine | cPanel → Sous-domaines |
 | Activer HTTPS | cPanel → SSL/TLS (AutoSSL) |
-| Récupérer le code | `git clone -b web-app …` puis `git archive … web-app:web` |
+| Récupérer le code | `git clone -b web-only …` puis `git archive … web-only` |
 
 ---
 

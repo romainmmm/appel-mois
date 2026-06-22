@@ -1,11 +1,13 @@
+# Configuration locale (créée sur le serveur)
+config.php
+
+# Données / base
+data/
+*.db
+*.json
+
+# Divers / temporaires
 __pycache__/
 *.pyc
-.pytest_cache/
-*.tmp.xlsx
-apercu_*.xlsx
-apercu_*.pdf
-staff_config.json
-notes.json
-timesheet.json
-extra_employees.json
-app_config.json
+apercu_*
+*.xlsx

@@ -25,10 +25,10 @@ chez le même hébergeur.
 
 ## Étape 3 — Téléverser les fichiers
 
-1. Récupérer le contenu du dossier **`web/`** du dépôt (branche `web-php`).
+1. Récupérer le contenu du dossier **`web/`** du dépôt (branche `web-only`).
    - Via **Gestionnaire de fichiers** cPanel (téléverser un ZIP puis extraire),
      ou via **FTP**.
-2. Mettre le contenu de `web/` dans le **dossier racine du sous-domaine**.
+2. Mettre tous les fichiers dans le **dossier racine du sous-domaine**.
 
 ## Étape 4 — Configurer la connexion à la base
 
@@ -69,7 +69,7 @@ Version ») → choisir **PHP 8.0 ou plus**, et vérifier que les extensions
 
 ## Mises à jour
 
-Re-téléverser les fichiers modifiés du dossier `web/` (sans écraser
+Re-téléverser les fichiers modifiés (sans écraser
 `config.php` ni le dossier `data/`).
 
 ## Notes
