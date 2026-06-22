@@ -115,15 +115,56 @@ define('APP_TITLE', 'Gestion des ménages — Motel Panoramique');
 
 ---
 
-## PHASE 5 — Vérifier la version de PHP
+## PHASE 5 — Choisir la version de PHP et vérifier les extensions
 
-1. cPanel → **Sélectionner la version de PHP** (« Select PHP Version » /
-   « MultiPHP Manager »).
-2. Choisis **PHP 8.0 ou plus** pour le sous-domaine.
-3. Vérifie que **`pdo_mysql`** et **`mbstring`** sont **cochées** (activées).
-   (Elles le sont presque toujours par défaut.)
+### 5.1 Trouver l'outil
+Dans le cPanel, section **« Logiciels » (Software)**. Selon dotCanada, tu verras
+l'un ou les deux outils :
+- **MultiPHP Manager** — choisir la version de PHP par domaine.
+- **Select PHP Version** (ou « PHP Selector ») — choisir la version **et**
+  activer/désactiver les extensions.
 
-**✅ Test 5 :** PHP ≥ 8 et `pdo_mysql` activé.
+### 5.2 Choisir PHP 8.x pour le sous-domaine
+1. Ouvrir **MultiPHP Manager**.
+2. Dans la liste, **cocher** `menages.motelpanoramique.ca`.
+3. Menu **« PHP Version »** (en haut à droite) → choisir **8.1, 8.2 ou 8.3**
+   (8.0 minimum).
+4. Cliquer **Apply / Appliquer**.
+
+### 5.3 Vérifier / activer les extensions
+1. Ouvrir **Select PHP Version** (ou l'onglet **Extensions** du PHP Selector).
+2. Vérifier que la version est bien **8.x**.
+3. S'assurer que ces cases sont **cochées** :
+   - **pdo_mysql** ✅ (obligatoire — connexion à la base)
+   - **mysqli** ✅
+   - **mbstring** ✅ (accents é, à…)
+   - *(pour la répartition plus tard : **zip**, **gd**, **xml**)*
+4. Cocher celles qui manquent → **Save / Enregistrer**.
+
+### 5.4 Vérifier que ça marche (test rapide)
+Créer un fichier `info.php` dans le dossier du sous-domaine, contenant :
+
+```php
+<?php phpinfo();
+```
+
+Ouvrir `https://menages.motelpanoramique.ca/info.php`, faire **Ctrl+F** et
+chercher **`pdo_mysql`** : tu dois voir une section **PDO** avec
+**pdo_mysql → enabled**.
+**⚠️ Supprime `info.php` juste après le test** (ne pas le laisser en ligne).
+
+### Si une extension manque ou tu ne trouves pas l'outil
+Écris au support dotCanada :
+> « Pouvez-vous activer PHP 8.x avec les extensions **pdo_mysql** et
+> **mbstring** pour mon sous-domaine menages.motelpanoramique.ca ? »
+
+### Pourquoi c'est important
+- **pdo_mysql** : sans elle → erreur « could not find driver » (l'app ne peut
+  pas parler à la base).
+- **mbstring** : accents corrects.
+- **PHP 8** : l'app utilise des fonctions récentes.
+
+**✅ Test 5 :** PHP ≥ 8 et `pdo_mysql` visible comme *enabled*.
 
 ---
 
