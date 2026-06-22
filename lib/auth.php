@@ -66,3 +66,25 @@ function is_gerant(): bool
     $u = current_user();
     return $u && $u['role'] === 'gerant';
 }
+
+/** @return array<array{username:string,role:string}> */
+function all_users(): array
+{
+    return db()->query('SELECT username, role FROM users ORDER BY role, username')->fetchAll();
+}
+
+function count_gerants(): int
+{
+    return (int) db()->query("SELECT COUNT(*) FROM users WHERE role = 'gerant'")->fetchColumn();
+}
+
+function delete_user(string $username): void
+{
+    db()->prepare('DELETE FROM users WHERE username = ?')->execute([$username]);
+}
+
+function set_password(string $username, string $password): void
+{
+    $sql = 'UPDATE users SET pass_hash = ? WHERE username = ?';
+    db()->prepare($sql)->execute([password_hash($password, PASSWORD_DEFAULT), $username]);
+}

@@ -32,6 +32,9 @@ function page_header(string $title = '', bool $with_nav = true): void
             'notes.php'     => '📝 Notes',
             'personnel.php' => '🗓️ Personnel',
         ];
+        if (is_gerant()) {
+            $tabs['admin.php'] = '👤 Comptes';
+        }
         $cur = basename($_SERVER['PHP_SELF']);
         foreach ($tabs as $href => $label) {
             $active = ($href === $cur) ? ' class="active"' : '';
