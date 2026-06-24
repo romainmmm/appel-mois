@@ -248,8 +248,12 @@ Puis re-téléverse `site.zip` dans le dossier du sous-domaine et extrais
 
 ## Note importante
 
-Cette version web contient : **connexion + comptes**, la **Feuille du
-personnel** (heures, pourboires, paie CSV) et les **Notes**. La **répartition
-des ménages** (Feuille du mois / du jour) sera ajoutée ensuite ; elle
-nécessitera de vérifier que dotCanada autorise les extensions PHP pour lire les
-`.xls`/PDF (zip, gd, mbstring).
+Cette version web contient désormais **toutes les fonctions** : connexion +
+comptes, **Feuille du personnel** (heures, pourboires, paie CSV), **Notes**,
+**Feuille du jour** (dépôt du **PDF** → grille imprimable) et **Feuille du mois**
+(dépôt du **CSV** des réservations → calendrier + feuilles imprimables) avec
+gestion de l'**Équipe** (étages, plafonds, congés).
+
+Pour la **Feuille du mois**, l'export de réservations doit être fourni en **CSV** :
+dans Excel, « Enregistrer sous → CSV ». Seule l'extension **mbstring** est requise
+(déjà activée) ; aucune librairie externe.

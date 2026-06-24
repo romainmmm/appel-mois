@@ -33,6 +33,7 @@ function page_header(string $title = '', bool $with_nav = true): void
             'personnel.php' => '🗓️ Personnel',
         ];
         if (is_gerant()) {
+            $tabs['equipe.php'] = '⚙️ Équipe';
             $tabs['admin.php'] = '👤 Comptes';
         }
         $cur = basename($_SERVER['PHP_SELF']);

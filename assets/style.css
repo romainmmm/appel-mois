@@ -49,3 +49,31 @@ th { background: #44546A; color: #fff; }
 .card { border: 1px solid var(--grid); border-radius: 10px; padding: 18px; max-width: 420px; margin: 30px auto; }
 .error { color: #b00020; font-weight: 600; }
 .ok { color: #1b7a3d; font-weight: 600; }
+
+/* Grille feuille du jour / mois */
+.daygrid { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.daygrid td { border: 1px solid var(--grid); padding: 4px 6px; font-size: 12px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.daygrid td.num { width: 36px; text-align: center; font-weight: 700; }
+.daygrid td.info { width: 30%; }
+.daygrid tr.sep td { border: none; height: 8px; }
+.daygrid .depart   { background: #E2C9C4; font-weight: 600; }
+.daygrid .arrivee  { background: #D3DAC4; font-weight: 600; }
+.daygrid .service  { background: #CBD5DC; font-weight: 600; }
+.daygrid .turnover { background: #EAD9B0; font-weight: 600; }
+.daygrid .manager  { background: #D9CFC0; font-weight: 600; }
+.legend span { display: inline-block; padding: 3px 10px; margin-right: 8px;
+    border: 1px solid var(--grid); font-size: 12px; }
+.legend .depart{background:#E2C9C4;} .legend .arrivee{background:#D3DAC4;}
+.legend .service{background:#CBD5DC;} .legend .turnover{background:#EAD9B0;}
+.legend .manager{background:#D9CFC0;}
+.hors-plan { color: #C00000; font-style: italic; }
+.cal td, .cal th { text-align: center; font-size: 13px; }
+.cal .we { background: var(--soft); }
+.cal .over { background: #D9CFC0; font-weight: 700; }
+@media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    header.brand, nav.tabs, .noprint { display: none !important; }
+    .container { max-width: none; margin: 0; padding: 0; }
+    .daygrid td { font-size: 11px; }
+}

@@ -80,3 +80,45 @@ function render_day_grid(array $data): string
     }
     return $html;
 }
+
+/** Grille imprimable d'une journée du calendrier mensuel (avec préposée par chambre). */
+function render_assignment_grid(array $da): string
+{
+    $roomMap = []; // room => [kind, worker, night]
+    foreach ($da['assignments'] as $worker => $tasks) {
+        foreach ($tasks as $t) { $roomMap[$t['room']] = [$t['kind'], $worker, $t['night'] ?? '']; }
+    }
+    foreach ($da['unassigned'] as $t) { $roomMap[$t['room']] = [$t['kind'], 'Gérants', $t['night'] ?? '']; }
+
+    $grid = [];
+    foreach (ROOM_POS as $room => [$row, $col]) { $grid[$row][$col] = $room; }
+
+    $cell = function (?int $room) use ($roomMap): string {
+        if ($room === null) return '<td class="num"></td><td class="info"></td>';
+        $num = '<td class="num">' . $room . '</td>';
+        if (!isset($roomMap[$room])) return $num . '<td class="info"></td>';
+        [$kind, $worker, $night] = $roomMap[$room];
+        $label = ($kind === 'depart') ? 'DÉPART' : 'SERVICE';
+        $cls = ($worker === 'Gérants') ? 'manager' : ($kind === 'depart' ? 'depart' : 'service');
+        $txt = $label . ' | ' . $worker . ($night ? ' (' . $night . ')' : '');
+        return $num . '<td class="info ' . $cls . '">' . htmlspecialchars($txt) . '</td>';
+    };
+
+    $html = '<table class="daygrid">';
+    foreach ([range(2, 10), range(12, 21)] as $zi => $zone) {
+        if ($zi === 1) $html .= '<tr class="sep"><td colspan="6"></td></tr>';
+        foreach ($zone as $r) {
+            $html .= '<tr>';
+            foreach (['A', 'C', 'E'] as $col) { $html .= $cell($grid[$r][$col] ?? null); }
+            $html .= '</tr>';
+        }
+    }
+    $html .= '</table>';
+
+    $extras = array_diff(array_keys($roomMap), array_keys(ROOM_POS));
+    if ($extras) {
+        sort($extras);
+        $html .= '<p class="hors-plan">Chambres hors plan : ' . implode(', ', $extras) . '</p>';
+    }
+    return $html;
+}
