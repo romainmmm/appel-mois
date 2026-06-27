@@ -6,6 +6,7 @@ require_once __DIR__ . '/lib/schedule.php';
 require_once __DIR__ . '/lib/staff_config.php';
 require_once __DIR__ . '/lib/distribution.php';
 require_once __DIR__ . '/lib/room_layout.php';
+require_once __DIR__ . '/lib/notes_tasks.php';
 
 auth_start();
 $team = load_team();
@@ -38,8 +39,9 @@ $day = $_GET['day'] ?? null;
 require_once __DIR__ . '/lib/layout.php';
 
 // ── Vue imprimable d'une journée ────────────────────────────────────
-if ($sched && $day && isset($sched[$day])) {
-    $da = assign_day($sched[$day], $team, $day);
+if ($sched && $day && (isset($sched[$day]) || manual_tasks_for_date($day))) {
+    $dayTasks = array_merge($sched[$day] ?? [], manual_tasks_for_date($day));
+    $da = assign_day($dayTasks, $team, $day);
     page_header('Feuille du jour — ' . $day);
     $dt = new DateTime($day);
     $label = WEEKDAYS_FR_LONG[(int)$dt->format('N') - 1] . ' ' . $dt->format('d/m/Y');
@@ -50,6 +52,7 @@ if ($sched && $day && isset($sched[$day])) {
     echo render_assignment_grid($da);
     echo '<p class="legend" style="margin-top:10px;">'
        . '<span class="depart">DÉPART</span><span class="service">SERVICE</span>'
+       . '<span class="manuel">Manuel (note)</span>'
        . '<span class="manager">Gérants (à replanifier)</span></p>';
     page_footer();
     exit;
@@ -78,7 +81,8 @@ page_header('Feuille du mois');
 </p>
 
 <?php if ($sched) {
-    $days = array_keys($sched);
+    $days = array_values(array_unique(array_merge(array_keys($sched), note_dates())));
+    sort($days);
     $ordered = $team;
     usort($ordered, fn($a, $b) => $a['order'] <=> $b['order']);
     ?>
@@ -93,14 +97,15 @@ page_header('Feuille du mois');
             <th>Gérants</th>
         </tr>
         <?php foreach ($days as $d) {
-            $da = assign_day($sched[$d], $team, $d);
+            $merged = array_merge($sched[$d] ?? [], manual_tasks_for_date($d));
+            $da = assign_day($merged, $team, $d);
             $dt = new DateTime($d);
             $we = (int)$dt->format('N') >= 6 ? ' class="we"' : '';
             ?>
             <tr<?php echo $we; ?>>
                 <td><a href="?day=<?php echo $d; ?>"><?php echo $dt->format('d/m/Y'); ?></a></td>
                 <td><?php echo WEEKDAYS_FR_SHORT[(int)$dt->format('N') - 1]; ?></td>
-                <td><?php echo count($sched[$d]); ?></td>
+                <td><?php echo count($merged); ?></td>
                 <?php foreach ($ordered as $w) {
                     $n = count($da['assignments'][$w['name']] ?? []);
                     echo '<td>' . ($n ?: '') . '</td>';

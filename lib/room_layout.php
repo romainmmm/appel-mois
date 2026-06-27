@@ -84,11 +84,11 @@ function render_day_grid(array $data): string
 /** Grille imprimable d'une journée du calendrier mensuel (avec préposée par chambre). */
 function render_assignment_grid(array $da): string
 {
-    $roomMap = []; // room => [kind, worker, night]
+    $roomMap = []; // room => [kind, worker, night, label]
     foreach ($da['assignments'] as $worker => $tasks) {
-        foreach ($tasks as $t) { $roomMap[$t['room']] = [$t['kind'], $worker, $t['night'] ?? '']; }
+        foreach ($tasks as $t) { $roomMap[$t['room']] = [$t['kind'], $worker, $t['night'] ?? '', $t['label'] ?? '']; }
     }
-    foreach ($da['unassigned'] as $t) { $roomMap[$t['room']] = [$t['kind'], 'Gérants', $t['night'] ?? '']; }
+    foreach ($da['unassigned'] as $t) { $roomMap[$t['room']] = [$t['kind'], 'Gérants', $t['night'] ?? '', $t['label'] ?? '']; }
 
     $grid = [];
     foreach (ROOM_POS as $room => [$row, $col]) { $grid[$row][$col] = $room; }
@@ -97,9 +97,15 @@ function render_assignment_grid(array $da): string
         if ($room === null) return '<td class="num"></td><td class="info"></td>';
         $num = '<td class="num">' . $room . '</td>';
         if (!isset($roomMap[$room])) return $num . '<td class="info"></td>';
-        [$kind, $worker, $night] = $roomMap[$room];
-        $label = ($kind === 'depart') ? 'DÉPART' : 'SERVICE';
-        $cls = ($worker === 'Gérants') ? 'manager' : ($kind === 'depart' ? 'depart' : 'service');
+        [$kind, $worker, $night, $mlabel] = $roomMap[$room];
+        if ($kind === 'manuel') {
+            $label = $mlabel ?: 'Manuel'; $cls = 'manuel';
+        } elseif ($kind === 'depart') {
+            $label = 'DÉPART'; $cls = 'depart';
+        } else {
+            $label = 'SERVICE'; $cls = 'service';
+        }
+        if ($worker === 'Gérants') $cls = 'manager';
         $txt = $label . ' | ' . $worker . ($night ? ' (' . $night . ')' : '');
         return $num . '<td class="info ' . $cls . '">' . htmlspecialchars($txt) . '</td>';
     };
