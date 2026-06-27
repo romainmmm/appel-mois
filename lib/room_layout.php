@@ -19,8 +19,11 @@ const ROOM_POS = [
     407 => [17, 'E'], 408 => [18, 'E'], 411 => [19, 'E'], 412 => [20, 'E'], 414 => [21, 'E'],
 ];
 
-/** Construit, pour une journée analysée, le HTML de la grille imprimable. */
-function render_day_grid(array $data): string
+/**
+ * Construit le HTML de la grille imprimable (feuille du jour depuis le PDF).
+ * @param array $manual  room => texte de note manuelle (Serviette/Chien/Ménage)
+ */
+function render_day_grid(array $data, array $manual = []): string
 {
     // room => liste de tâches
     $tasks = [];
@@ -34,10 +37,14 @@ function render_day_grid(array $data): string
     $grid = [];
     foreach (ROOM_POS as $room => [$row, $col]) { $grid[$row][$col] = $room; }
 
-    $cell = function (?int $room) use ($tasks): string {
+    $cell = function (?int $room) use ($tasks, $manual): string {
         if ($room === null) return '<td class="num"></td><td class="info"></td>';
         $num = '<td class="num">' . $room . '</td>';
-        if (empty($tasks[$room])) return $num . '<td class="info"></td>';
+        $note = $manual[$room] ?? '';
+        if (empty($tasks[$room])) {
+            if ($note === '') return $num . '<td class="info"></td>';
+            return $num . '<td class="info manuel">' . htmlspecialchars($note) . '</td>';
+        }
         $kinds = array_column($tasks[$room], 'kind');
         $names = [];
         foreach ($tasks[$room] as $t) { if (trim($t['name']) !== '') $names[$t['name']] = true; }
@@ -53,8 +60,9 @@ function render_day_grid(array $data): string
         }
         $extra = '';
         foreach ($tasks[$room] as $t) { if (!empty($t['extra'])) { $extra = ' (' . $t['extra'] . ')'; break; } }
-        $txt = htmlspecialchars($label . ' | ' . $names . $extra);
-        return $num . '<td class="info ' . $cls . '">' . $txt . '</td>';
+        $txt = $label . ' | ' . $names . $extra;
+        if ($note !== '') $txt .= ' + ' . $note;
+        return $num . '<td class="info ' . $cls . '">' . htmlspecialchars($txt) . '</td>';
     };
 
     $rowsZone1 = range(2, 10);
@@ -73,7 +81,7 @@ function render_day_grid(array $data): string
     $html .= '</table>';
 
     // Chambres hors plan (sécurité)
-    $extras = array_diff(array_keys($tasks), array_keys(ROOM_POS));
+    $extras = array_diff(array_unique(array_merge(array_keys($tasks), array_keys($manual))), array_keys(ROOM_POS));
     if ($extras) {
         sort($extras);
         $html .= '<p class="hors-plan">Chambres hors plan : ' . implode(', ', $extras) . '</p>';

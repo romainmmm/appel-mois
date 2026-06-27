@@ -52,6 +52,23 @@ function _clean_date(string $s): string
     return preg_replace('/\s+/', ' ', trim($s));
 }
 
+/** Convertit "Mercredi 16 décembre 2026" -> "2026-12-16" (ou null). */
+function french_date_to_ymd(string $label): ?string
+{
+    $mois = [
+        'janvier' => 1, 'février' => 2, 'fevrier' => 2, 'mars' => 3, 'avril' => 4,
+        'mai' => 5, 'juin' => 6, 'juillet' => 7, 'août' => 8, 'aout' => 8,
+        'septembre' => 9, 'octobre' => 10, 'novembre' => 11, 'décembre' => 12, 'decembre' => 12,
+    ];
+    if (preg_match('/(\d{1,2})\s+([A-Za-zéûô]+)\s+(\d{4})/u', $label, $m)) {
+        $mo = mb_strtolower($m[2], 'UTF-8');
+        if (isset($mois[$mo])) {
+            return sprintf('%04d-%02d-%02d', (int)$m[3], $mois[$mo], (int)$m[1]);
+        }
+    }
+    return null;
+}
+
 function _split_name_extra(string $text): array
 {
     if (preg_match('/(Nuit\s*\d+\s*sur\s*\d+)/u', $text, $m)) {

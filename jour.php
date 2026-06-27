@@ -22,6 +22,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf'])) {
     }
 }
 
+// Notes manuelles (Serviette/Chien/Ménage) pour la date détectée
+$manualNotes = [];
+if ($data !== null) {
+    $ymd = french_date_to_ymd($data['date'] ?? '');
+    if ($ymd) {
+        foreach (data_get('notes', []) as $n) {
+            if (($n['date'] ?? '') !== $ymd) continue;
+            if (!in_array($n['type'] ?? '', ['Ménage', 'Serviette', 'Chien'], true)) continue;
+            if (empty($n['room'])) continue;
+            $t = mb_strtoupper($n['type'], 'UTF-8') . (!empty($n['comment']) ? ': ' . $n['comment'] : '');
+            $manualNotes[(int)$n['room']][] = $t;
+        }
+        $manualNotes = array_map(fn($a) => implode(' ; ', $a), $manualNotes);
+    }
+}
+
 require_once __DIR__ . '/lib/layout.php';
 page_header('Feuille du jour');
 ?>
@@ -37,6 +53,8 @@ page_header('Feuille du jour');
 .daygrid .arrivee  { background: #D3DAC4; font-weight: 600; }
 .daygrid .service  { background: #CBD5DC; font-weight: 600; }
 .daygrid .turnover { background: #EAD9B0; font-weight: 600; }
+.daygrid .manuel   { background: #C9DCD4; font-weight: 600; }
+.legend .manuel { background: #C9DCD4; }
 .legend span { display: inline-block; padding: 3px 10px; margin-right: 8px;
     border: 1px solid var(--grid); font-size: 12px; }
 .legend .depart{background:#E2C9C4;} .legend .arrivee{background:#D3DAC4;}
@@ -79,13 +97,14 @@ page_header('Feuille du jour');
         Feuille du jour — <?php echo htmlspecialchars($data['date'] ?: 'Date non détectée'); ?>
     </h2>
 
-    <?php echo render_day_grid($data); ?>
+    <?php echo render_day_grid($data, $manualNotes); ?>
 
     <p class="legend" style="margin-top:10px;">
         <span class="arrivee">ARRIVÉE</span>
         <span class="depart">DÉPART</span>
         <span class="service">SERVICE</span>
         <span class="turnover">DÉP+ARR</span>
+        <span class="manuel">Note (Serviette/Chien…)</span>
     </p>
 <?php } else { ?>
     <p class="noprint" style="color:#666;">Dépose le PDF de la journée pour générer
